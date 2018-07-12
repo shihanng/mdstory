@@ -29,6 +29,11 @@ import (
 	"github.com/spf13/viper"
 )
 
+const (
+	configName = ".mdstory"
+	configType = "json"
+)
+
 var cfgFile string
 
 // rootCmd represents the base command when called without any subcommands
@@ -81,12 +86,11 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		// Search config in home directory with name ".mdstory" (without extension).
+		viper.AddConfigPath(".")
 		viper.AddConfigPath(home)
-		viper.SetConfigName(".mdstory")
+		viper.SetConfigName(configName)
+		viper.SetConfigType(configType)
 	}
-
-	viper.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	if err := viper.ReadInConfig(); err == nil {
