@@ -81,7 +81,7 @@ func loginRun(_ *cobra.Command, _ []string) {
 	fmt.Printf("You choose %q\n", result)
 }
 
-// touch tries to open
+// touch is kind of like /bin/touch.
 func touch() {
 	f, err := os.OpenFile(configName+"."+configType, os.O_RDWR|os.O_CREATE, 0600)
 	if err != nil {
