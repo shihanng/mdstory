@@ -86,7 +86,6 @@ func initConfig() {
 			os.Exit(1)
 		}
 
-		viper.AddConfigPath(".")
 		viper.AddConfigPath(home)
 		viper.SetConfigName(configName)
 		viper.SetConfigType(configType)
