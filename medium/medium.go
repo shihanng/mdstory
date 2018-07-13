@@ -34,5 +34,5 @@ type client struct {
 
 // Username of the user identified by the access token.
 func (c *client) Username() string {
-	return c.userID
+	return c.username
 }
