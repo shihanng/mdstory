@@ -20,6 +20,9 @@ import (
 	"os"
 
 	"github.com/manifoldco/promptui"
+	"github.com/pkg/errors"
+	"github.com/shihanng/mdstory/github"
+	"github.com/shihanng/mdstory/medium"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -27,14 +30,11 @@ import (
 // loginCmd represents the login command
 var loginCmd = &cobra.Command{
 	Use:   "login",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	Run:  loginRun,
+	Short: "A helper to help you setup your Medium and GitHub credentials",
+	Long: `A helper that asks for your Medium's integration token and
+GitHub's personal access token and stores them in the config file.
+It will overwrite the existing config file.`,
+	RunE: loginRun,
 	Args: cobra.ExactArgs(0),
 }
 
@@ -52,33 +52,70 @@ func init() {
 	// loginCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func loginRun(_ *cobra.Command, _ []string) {
-	validate := func(input string) error {
-		// TODO: do proper validation
-		return nil
+func require(v string) error {
+	if v == "" {
+		return errors.New("required")
+	}
+	return nil
+}
+
+var defaultPromptTemplates = &promptui.PromptTemplates{
+	Prompt:          "{{ . }}: ",
+	Valid:           "{{ . }}: ",
+	Invalid:         "{{ . }}: ",
+	Success:         "{{ . }}: ",
+	ValidationError: "({{ . }})",
+}
+
+func loginRun(_ *cobra.Command, _ []string) error {
+	promptMedium := promptui.Prompt{
+		Label:     "Medium's integration token",
+		Validate:  require,
+		Templates: defaultPromptTemplates,
 	}
 
-	prompt := promptui.Prompt{
-		Label:    "Medium's access token",
-		Validate: validate,
-	}
-
-	result, err := prompt.Run()
-
+	fmt.Println("Visit https://medium.com/me/settings to generate a new integration tokens.")
+	mediumToken, err := promptMedium.Run()
 	if err != nil {
-		fmt.Printf("Prompt failed %v\n", err)
-		return
+		return errors.Wrap(err, "in getting Medium's integration token")
 	}
 
-	viper.Set("medium_access_token", result)
+	promptGitHub := promptui.Prompt{
+		Label:     "GitHub's personal access token",
+		Validate:  require,
+		Templates: defaultPromptTemplates,
+	}
+
+	fmt.Println("\nVisit https://github.com/settings/tokens/new to generate a new personal access tokens.")
+	fmt.Println("Scope: gist, Create gists")
+	githubToken, err := promptGitHub.Run()
+	if err != nil {
+		return errors.Wrap(err, "in getting GitHub's personal access token")
+	}
+
+	fmt.Println("")
+
+	mediumClient, err := medium.New(mediumToken)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("will use Medium as: %s\n", mediumClient.Username())
+	viper.Set("medium_access_token", mediumToken)
+
+	githubClient, err := github.New(githubToken)
+	if err != nil {
+		return err
+	}
+	fmt.Printf("will use GitHub as: %s\n", githubClient.Username())
+	viper.Set("github_access_token", githubToken)
+
 	touch()
 
 	if err := viper.WriteConfig(); err != nil {
-		fmt.Printf("Save failed %v\n", err)
-		return
+		return errors.Wrap(err, "in writing config file")
 	}
 
-	fmt.Printf("You choose %q\n", result)
+	return nil
 }
 
 // touch is kind of like /bin/touch.
