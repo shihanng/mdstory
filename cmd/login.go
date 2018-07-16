@@ -16,8 +16,6 @@ package cmd
 
 import (
 	"fmt"
-	"log"
-	"os"
 
 	"github.com/manifoldco/promptui"
 	"github.com/pkg/errors"
@@ -109,20 +107,9 @@ func loginRun(_ *cobra.Command, _ []string) error {
 	fmt.Printf("will use GitHub as: %s\n", githubClient.Username())
 	viper.Set("github_access_token", githubToken)
 
-	touch()
-
 	if err := viper.WriteConfig(); err != nil {
 		return errors.Wrap(err, "in writing config file")
 	}
 
 	return nil
-}
-
-// touch is kind of like /bin/touch.
-func touch() {
-	f, err := os.OpenFile(configName+"."+configType, os.O_RDWR|os.O_CREATE, 0600)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
 }
