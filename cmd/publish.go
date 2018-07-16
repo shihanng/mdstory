@@ -16,7 +16,6 @@ package cmd
 
 import (
 	"io/ioutil"
-	"log"
 	"os"
 
 	"github.com/pkg/errors"
@@ -34,7 +33,7 @@ and usage of using your command. For example:
 Cobra is a CLI library for Go that empowers applications.
 This application is a tool to generate the needed files
 to quickly create a Cobra application.`,
-	Run:  publishRun,
+	RunE: publishRun,
 	Args: cobra.ExactArgs(1),
 }
 
@@ -52,15 +51,16 @@ func init() {
 	// publishCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
-func publishRun(cmd *cobra.Command, args []string) {
+func publishRun(cmd *cobra.Command, args []string) error {
 	filename := args[0]
 
 	blob, err := ioutil.ReadFile(filename)
 	if err != nil {
-		log.Fatal(errors.Wrapf(err, "reading file \"%v\"", filename))
+		return errors.Wrap(err, "in reading markdown source")
 	}
 
 	parseMarkdown(blob)
+	return nil
 }
 
 func parseMarkdown(blob []byte) {
