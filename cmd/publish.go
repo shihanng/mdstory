@@ -15,6 +15,7 @@
 package cmd
 
 import (
+	"io"
 	"io/ioutil"
 	"os"
 
@@ -37,9 +38,12 @@ to quickly create a Cobra application.`,
 	Args: cobra.ExactArgs(1),
 }
 
+var output string
+
 func init() {
 	rootCmd.AddCommand(publishCmd)
 
+	publishCmd.Flags().StringVarP(&output, "output", "o", "", "Write the resulting HTML to file instead of stdout. If use with -xxx, the resulting HTML will not be posted to Medium.com but will be written to file.")
 	// Here you will define your flags and configuration settings.
 
 	// Cobra supports Persistent Flags which will work for this command
@@ -59,11 +63,30 @@ func publishRun(cmd *cobra.Command, args []string) error {
 		return errors.Wrap(err, "in reading markdown source")
 	}
 
-	parseMarkdown(blob)
+	var p *process
+
+	if output != "" {
+		var err error
+		outputFile, err := os.Create(output)
+		if err != nil {
+			return errors.Wrap(err, "in creating output file")
+		}
+		defer outputFile.Close()
+
+		p = &process{outputFile}
+	} else {
+		p = &process{os.Stdout}
+	}
+
+	p.parseMarkdown(blob)
 	return nil
 }
 
-func parseMarkdown(blob []byte) {
+type process struct {
+	output io.Writer
+}
+
+func (p *process) parseMarkdown(blob []byte) {
 	md := blackfriday.New(blackfriday.WithExtensions(
 		blackfriday.FencedCode | blackfriday.NoEmptyLineBeforeBlock))
 
@@ -83,7 +106,7 @@ func parseMarkdown(blob []byte) {
 	r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
 
 	node.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-		return r.RenderNode(os.Stdout, node, entering)
+		return r.RenderNode(p.output, node, entering)
 	})
 }
 
