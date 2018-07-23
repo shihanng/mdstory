@@ -15,6 +15,8 @@
 package cmd
 
 import (
+	"fmt"
+	"html/template"
 	"io"
 	"io/ioutil"
 	"os"
@@ -73,17 +75,20 @@ func publishRun(cmd *cobra.Command, args []string) error {
 		}
 		defer outputFile.Close()
 
-		p = &process{outputFile}
+		p = &process{output: outputFile}
 	} else {
-		p = &process{os.Stdout}
+		p = &process{output: os.Stdout}
 	}
+
+	p.htmlRenderer = blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
 
 	p.parseMarkdown(blob)
 	return nil
 }
 
 type process struct {
-	output io.Writer
+	output       io.Writer
+	htmlRenderer *blackfriday.HTMLRenderer
 }
 
 func (p *process) parseMarkdown(blob []byte) {
@@ -92,46 +97,39 @@ func (p *process) parseMarkdown(blob []byte) {
 
 	node := md.Parse(blob)
 
-	w := &walker{}
-	node.Walk(w.visitor)
-
-	for _, image := range w.Images {
-		rewriteImage(image)
-	}
-
-	for _, code := range w.CodeBlocks {
-		replaceGist(code)
-	}
-
-	r := blackfriday.NewHTMLRenderer(blackfriday.HTMLRendererParameters{})
-
-	node.Walk(func(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
-		return r.RenderNode(p.output, node, entering)
-	})
+	node.Walk(p.visit)
 }
 
-type walker struct {
-	CodeBlocks []*blackfriday.Node
-	Images     []*blackfriday.Node
-}
-
-func (w *walker) visitor(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
+func (p *process) visit(node *blackfriday.Node, entering bool) blackfriday.WalkStatus {
 	switch node.Type {
 	case blackfriday.Image:
-		w.Images = append(w.Images, node)
+		fmt.Println("entering", entering)
+		fmt.Println(node)
+		rewriteImage(node)
 	case blackfriday.CodeBlock:
-		w.CodeBlocks = append(w.CodeBlocks, node)
+		fmt.Println("entering code", entering)
+		fmt.Println("code", node)
+		replaceGist(p.output, node)
+		return blackfriday.GoToNext
 	}
-	return blackfriday.GoToNext
+
+	return p.htmlRenderer.RenderNode(p.output, node, entering)
 }
 
 func rewriteImage(imageNode *blackfriday.Node) {
 	imageNode.LinkData.Destination = []byte(`test.jpg`)
 }
 
-func replaceGist(codeNode *blackfriday.Node) {
-	n := blackfriday.NewNode(blackfriday.Link)
-	n.LinkData.Destination = []byte(`example.com`)
+var gistTmpl = template.Must(
+	template.New("gist").Funcs(template.FuncMap{
+		"comment": func(html string) template.HTML {
+			return template.HTML(html)
+		},
+	}).Parse(`
+{{ "<!-- Code block uploaded to GitHubs gist -->" | comment }}
+{{.}}
+`))
 
-	codeNode.InsertBefore(n)
+func replaceGist(w io.Writer, codeNode *blackfriday.Node) {
+	_ = gistTmpl.Execute(w, "example.com")
 }
